@@ -79,6 +79,12 @@ var serve = function() {
 
 var spawn = function(opts) {
   var phantomjsArgs = opts.phantomFlags.concat(path.join(__dirname, 'phantom-process.js'));
+  if (typeof phantomjsArgs === 'string') {
+    phantomjsArgs = [phantomjsArgs];
+  }
+  if (opts.injectLocalStorage) {
+    phantomjsArgs.push('injectLocalStorage='+JSON.stringify(opts.injectLocalStorage));
+  }
   var child = proc.spawn(phantomjsPath, phantomjsArgs);
   debug('phantom (%s) spawned', child.pid);
 
@@ -188,7 +194,7 @@ var pool = function(opts) {
 
     worker.stream.on('data', function(data) {
       if (data.log) return dup.push(data);
-      
+
       if (!data.success) worker.errors++;
       else worker.errors = 0;
 
@@ -252,7 +258,7 @@ var create = function(opts) {
     if (!proxy) return;
 
     if (data.log) return proxy.emit('log', data.log);
-  
+
     if (!data.success && data.tries < opts.retries) {
       fs.unlink(data.filename, noop);
       data.tries++;
@@ -265,8 +271,8 @@ var create = function(opts) {
     if (!data.success) {
       fs.unlink(data.filename, noop);
       return proxy.destroy(new Error(
-        'Render failed (' + data.tries + ' tries) ' + 
-        'Request details: ' + JSON.stringify(data))); 
+        'Render failed (' + data.tries + ' tries) ' +
+        'Request details: ' + JSON.stringify(data)));
     }
 
     eos(proxy, { writable: false }, function() {

@@ -16,7 +16,7 @@ function createWebPage (id) {
       log: message
     });
     console.log(json);
-  }
+  };
 
   page.onConsoleMessage = function (msg, lineNum, sourceId) {
     page.log({
@@ -118,7 +118,7 @@ var forcePrintMedia = function() {
 var renders = 0, maxRenders = 500;
 var loop = function() {
   var line = system.stdin.readLine();
-  if (!line.trim()) return phantom.exit(0); 
+  if (!line.trim()) return phantom.exit(0);
 
   try {
     line = JSON.parse(line);
@@ -180,7 +180,7 @@ var loop = function() {
     console.log(JSON.stringify(line));
     page = null;
     loop();
-  }
+  };
 
   page.open(line.url, function(requestStatus) {
     if (requestStatus !== 'success') return onerror({
@@ -188,64 +188,121 @@ var loop = function() {
       data: {status: requestStatus}
     });
 
-    var render = function() {
-      setTimeout(function() {
-        if (line.printMedia) forcePrintMedia();
-        page.render(line.filename, {format:line.format || 'png', quality:line.quality || 100});
-        page = null;
-        line.success = true;
-        console.log(JSON.stringify(line));
-        if (maxRenders && renders++ >= maxRenders) return phantom.exit(0);
-        loop();
-      }, 0);
-    };
+    var injectLocalStorage = retrieveArg('injectLocalStorage');
+    if (injectLocalStorage) {
+      var atBeginning = "\n    var injectLocalStorage = JSON.parse(" + JSON.stringify(injectLocalStorage) + ");";
+      var func = function(){
+        var key;
 
-    var waitAndRender = function() {
-      var timeout = setTimeout(function() {
-        page.onAlert('webpage-error');
-      }, line.timeout);
+        localStorage.clear();
 
-      var rendered = false;
-      page.onAlert = function(msg) {
-        if (msg !== 'webpage-renderable' && msg !== 'webpage-error') return;
-        if (rendered) return;
-        rendered = true;
-        clearTimeout(timeout);
+        for (key in injectLocalStorage) {
+          if (injectLocalStorage.hasOwnProperty(key)) {
+            localStorage.setItem(key, injectLocalStorage[key]);
+          }
+        }
+      };
+      var evalFunc = getFunctionWithPrepend(atBeginning, func);
+      page.evaluate(evalFunc);
+    }
 
-        if (msg === 'webpage-renderable') render();
-        else onerror({
-          type: 'expectError',
-          data: {expects: line.expects}
-        });
+    page.open(line.url, function(requestStatus) {
+      if (requestStatus !== 'success') return onerror({
+        type: 'pageFetchError',
+        data: {status: requestStatus}
+      });
+
+      var render = function () {
+        setTimeout(function () {
+          if (line.printMedia) forcePrintMedia();
+          page.render(line.filename, {format: line.format || 'png', quality: line.quality || 100});
+          page = null;
+          line.success = true;
+          console.log(JSON.stringify(line));
+          if (maxRenders && renders++ >= maxRenders) return phantom.exit(0);
+          loop();
+        }, 3000);
       };
 
-      page.evaluate(function(expects) {
-        if (window.renderable === expects) return alert('webpage-renderable');
-        if (window.renderable) return alert('webpage-error');
+      var waitAndRender = function () {
+        var timeout = setTimeout(function () {
+          page.onAlert('webpage-error');
+        }, line.timeout);
 
-        var renderable = false;
-        Object.defineProperty(window, 'renderable', {
-          get: function() {
-            return renderable;
-          },
-          set: function(val) {
-            renderable = val;
-            if (renderable === expects) alert('webpage-renderable');
-            else alert('webpage-error');
-          }
-        });
-      }, line.expects);
-    };
+        var rendered = false;
+        page.onAlert = function (msg) {
+          if (msg !== 'webpage-renderable' && msg !== 'webpage-error') return;
+          if (rendered) return;
+          rendered = true;
+          clearTimeout(timeout);
 
-    var renderable = page.evaluate(function() {
-      return window.renderable;
+          if (msg === 'webpage-renderable') render();
+          else onerror({
+            type: 'expectError',
+            data: {expects: line.expects}
+          });
+        };
+
+        page.evaluate(function (expects) {
+          if (window.renderable === expects) return alert('webpage-renderable');
+          if (window.renderable) return alert('webpage-error');
+
+          var renderable = false;
+          Object.defineProperty(window, 'renderable', {
+            get: function () {
+              return renderable;
+            },
+            set: function (val) {
+              renderable = val;
+              if (renderable === expects) alert('webpage-renderable');
+              else alert('webpage-error');
+            }
+          });
+        }, line.expects);
+      };
+
+      var renderable = page.evaluate(function () {
+        return window.renderable;
+      });
+
+      if (renderable === false && !line.expects) line.expects = true;
+      if (line.expects === renderable) return render();
+      if (line.expects) return waitAndRender();
+      render();
+
+      // if (injectLocalStorage) {
+      //   page.evaluate(function(){
+      //     localStorage.clear();
+      //   });
+      // }
     });
-
-    if (renderable === false && !line.expects) line.expects = true;
-    if (line.expects === renderable) return render();
-    if (line.expects) return waitAndRender();
-    render();
   });
 };
+
+function retrieveArg(argName) {
+  var i;
+
+  for (i = 1; i < system.args.length; i++) {
+    var keyVal = system.args[i].split('=');
+    if (keyVal[0] === argName) {
+      var argVal = keyVal[1];
+
+      try {
+        argVal = JSON.parse(argVal);
+      } catch (err) {
+      } finally {
+        return argVal;
+      }
+    }
+
+    return false;
+  }
+}
+
+function getFunctionWithPrepend(prepend, func) {
+  var funcString = func.toString();
+  var prependAt = funcString.indexOf('{');
+  return funcString.slice(0, prependAt + 1) + prepend + funcString.slice(prependAt + 1);
+}
 
 loop();
