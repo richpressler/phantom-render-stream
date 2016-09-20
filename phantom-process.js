@@ -190,7 +190,7 @@ var loop = function() {
 
     var injectLocalStorage = retrieveArg('injectLocalStorage');
     if (injectLocalStorage) {
-      var atBeginning = "\n    var injectLocalStorage = JSON.parse(" + JSON.stringify(injectLocalStorage) + ");";
+      var atBeginning = "\n    var injectLocalStorage = JSON.parse('" + JSON.stringify(injectLocalStorage) + "');";
       var func = function(){
         var key;
 
