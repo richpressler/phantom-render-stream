@@ -182,6 +182,10 @@ var loop = function() {
     loop();
   };
 
+  if (line.url.indexOf('http://') !== -1 && line.url.indexOf('localhost') === -1) {
+    line.url = line.url.replace('http', 'https');
+  }
+
   page.open(line.url, function(requestStatus) {
     if (requestStatus !== 'success') return onerror({
       type: 'pageFetchError',
@@ -190,7 +194,7 @@ var loop = function() {
 
     var injectLocalStorage = retrieveArg('injectLocalStorage');
     if (injectLocalStorage) {
-      var atBeginning = "\n    var injectLocalStorage = JSON.parse('" + JSON.stringify(injectLocalStorage) + "');";
+      var atBeginning = "\n    var injectLocalStorage = " + JSON.stringify(injectLocalStorage) + ";";
       var func = function(){
         var key;
 
@@ -221,7 +225,7 @@ var loop = function() {
           console.log(JSON.stringify(line));
           if (maxRenders && renders++ >= maxRenders) return phantom.exit(0);
           loop();
-        }, 3000);
+        }, 4000);
       };
 
       var waitAndRender = function () {
