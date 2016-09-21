@@ -57,6 +57,8 @@ function createWebPage (id) {
     });
   };
 
+  page.settings.localToRemoteUrlAccessEnabled = true;
+
   return page;
 }
 
@@ -128,6 +130,7 @@ var loop = function() {
 
   if (!page) page = createWebPage(line.id);
   else page.id = line.id;
+  page.settings.localToRemoteUrlAccessEnabled = true;
 
   if (line.cookies && line.cookies.length > 0) {
     line.cookies.forEach(function (c) {
@@ -173,6 +176,8 @@ var loop = function() {
       left: line.crop.left || 0
     }
   }
+
+  page.settings.localToRemoteUrlAccessEnabled = true;
 
   var onerror = function(message) {
     page.log(message);
